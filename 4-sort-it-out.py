@@ -66,6 +66,7 @@ def destination(file, disposition):
         print(disposition)
         return no
 
+
 if __name__ == "__main__":
     in_range_outputs = [yes, probably, possibly, no]
     all_outputs = [
@@ -82,13 +83,13 @@ if __name__ == "__main__":
     ]
 
     for file in tqdm([
-            "3-registrations-in-range",
-            "3-registrations-foreign",
-            "3-registrations-previously-published",
-            "3-registrations-too-late",
-            "3-registrations-too-early",
-            "3-registrations-not-books-proper",
-            "3-registrations-error",], desc="Sorting to files"
+        "3-registrations-in-range",
+        "3-registrations-foreign",
+        "3-registrations-previously-published",
+        "3-registrations-too-late",
+        "3-registrations-too-early",
+        "3-registrations-not-books-proper",
+        "3-registrations-error", ], desc="Sorting to files"
     ):
         path = "output/%s.ndjson"
         with open(path % file) as f:
