@@ -1,3 +1,5 @@
+from tqdm import tqdm
+
 from model import Registration
 import json
 from pdb import set_trace
@@ -64,45 +66,46 @@ def destination(file, disposition):
         print(disposition)
         return no
 
+if __name__ == "__main__":
+    in_range_outputs = [yes, probably, possibly, no]
+    all_outputs = [
+        foreign,
+        previously_published,
+        too_late,
+        too_early,
+        yes,
+        probably,
+        possibly,
+        no,
+        not_books_proper,
+        error,
+    ]
 
-in_range_outputs = [yes, probably, possibly, no]
-all_outputs = [
-    foreign,
-    previously_published,
-    too_late,
-    too_early,
-    yes,
-    probably,
-    possibly,
-    no,
-    not_books_proper,
-    error,
-]
+    for file in tqdm([
+            "3-registrations-in-range",
+            "3-registrations-foreign",
+            "3-registrations-previously-published",
+            "3-registrations-too-late",
+            "3-registrations-too-early",
+            "3-registrations-not-books-proper",
+            "3-registrations-error",], desc="Sorting to files"
+    ):
+        path = "output/%s.ndjson"
+        with open(path % file) as f:
+            for i in f:
+                data = Registration.from_json(json.loads(i))
+                dest = destination(file, data.disposition)
+                dest.output(data)
 
-for file in (
-        "3-registrations-in-range",
-        "3-registrations-foreign",
-        "3-registrations-previously-published",
-        "3-registrations-too-late",
-        "3-registrations-too-early",
-        "3-registrations-not-books-proper",
-        "3-registrations-error",
-):
-    path = "output/%s.ndjson"
-    for i in open(path % file):
-        data = Registration.from_json(json.loads(i))
-        dest = destination(file, data.disposition)
-        dest.output(data)
+    in_range_total = sum(x.count for x in in_range_outputs)
+    grand_total = sum(x.count for x in all_outputs)
 
-in_range_total = sum(x.count for x in in_range_outputs)
-grand_total = sum(x.count for x in all_outputs)
-
-print("Among all publications:")
-for output in all_outputs:
-    print(output.tally(grand_total))
-print("Total: %s" % grand_total)
-print("")
-print("Among first US publications in renewal range:")
-for output in in_range_outputs:
-    print(output.tally(in_range_total))
-print("Total: %s" % in_range_total)
+    print("Among all publications:")
+    for output in all_outputs:
+        print(output.tally(grand_total))
+    print("Total: %s" % grand_total)
+    print("")
+    print("Among first US publications in renewal range:")
+    for output in in_range_outputs:
+        print(output.tally(in_range_total))
+    print("Total: %s" % in_range_total)

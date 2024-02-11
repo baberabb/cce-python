@@ -1,5 +1,8 @@
+from pathlib import Path
+
 import Levenshtein as lev
 from pdb import set_trace
+from tqdm import tqdm
 from model import Registration
 import datetime
 import re
@@ -16,22 +19,18 @@ QUALITY_CUTOFF = 0
 # Stuff published before this year is public domain.
 CUTOFF_YEAR = datetime.datetime.today().year - 95
 
-class Comparator(object):
 
-    NON_ALPHABETIC = re.compile("[\W0-9]", re.I + re.UNICODE)
-    NON_ALPHANUMERIC = re.compile("[\W_]", re.I + re.UNICODE)
-    MULTIPLE_SPACES = re.compile("\s+")
+class Comparator:
+    NON_ALPHABETIC = re.compile(r"[\W0-9]", re.I + re.UNICODE)
+    NON_ALPHANUMERIC = re.compile(r"[\W_]", re.I + re.UNICODE)
+    MULTIPLE_SPACES = re.compile(r"\s+")
 
-    ALREADY_OPEN = set([
-        "http://rightsstatements.org/vocab/NKC/1.0/"
-    ])
+    ALREADY_OPEN = {"http://rightsstatements.org/vocab/NKC/1.0/"}
 
     # Government authors whose work should either be already public
     # domain or whose work probably wasn't copyrighted, and whose
     # Internet Archive documents clutter up the matching code.
-    IGNORE_AUTHORS = set([
-        "Central Intelligence Agency"
-    ])
+    IGNORE_AUTHORS = {"Central Intelligence Agency"}
 
     GENERIC_TITLES = (
         'annual report',
@@ -50,43 +49,45 @@ class Comparator(object):
         'bulletin',
         'papers',
     )
-    GENERIC_TITLES_RE = re.compile("(%s)" % "|".join(GENERIC_TITLES))
-    TOTALLY_GENERIC_TITLES_RE = re.compile("^(%s)$" % "|".join(GENERIC_TITLES))
+    GENERIC_TITLES_RE = re.compile(r"(%s)" % "|".join(GENERIC_TITLES))
+    TOTALLY_GENERIC_TITLES_RE = re.compile(r"^(%s)$" % "|".join(GENERIC_TITLES))
 
     def __init__(self, ia_text_file):
         self.by_title_key = defaultdict(list)
         self._normalized = dict()
         self._normalized_names = dict()
         self._name_words = dict()
-        for i, raw in enumerate(open(ia_text_file)):
-            data = json.loads(raw)
-            license_url = data.get('licenseurl')
-            if license_url and (
-                    'creativecommons.org' in license_url
-                    or license_url in self.ALREADY_OPEN
-            ):
-                # This is already open-access; don't consider it.
-                continue
+        with Path(ia_text_file).open() as f:
+            for i, raw in enumerate(tqdm(f, desc="Building Database")):
+                data = json.loads(raw)
+                license_url = data.get('licenseurl')
+                if license_url and (
+                        'creativecommons.org' in license_url
+                        or license_url in self.ALREADY_OPEN
+                ):
+                    # This is already open-access; don't consider it.
+                    continue
 
-            year = data.get('year')
-            if int(year) > 1963+5 or int(year) < CUTOFF_YEAR:
-                # Don't consider works published more than 5 years out
-                # of the range we're considering. That's plenty of
-                # time to publish the work you registered, or to register
-                # the work you published.
-                continue
+                year = data.get('year')
+                if year:
+                    if int(year) > 1963 + 5 or int(year) < CUTOFF_YEAR:
+                        # Don't consider works published more than 5 years out
+                        # of the range we're considering. That's plenty of
+                        # time to publish the work you registered, or to register
+                        # the work you published.
+                        continue
 
-            authors = data.get('creator', [])
-            if not isinstance(authors, list):
-                authors = [authors]
-            if any(author in self.IGNORE_AUTHORS for author in authors):
-                continue
-            title = data['title']
-            title = self.normalize(title)
-            if not title:
-                continue
-            key = self.title_key(title)
-            self.by_title_key[key].append(data)
+                authors = data.get('creator', [])
+                if not isinstance(authors, list):
+                    authors = [authors]
+                if any(author in self.IGNORE_AUTHORS for author in authors):
+                    continue
+                title = data['title']
+                title = self.normalize(title)
+                if not title:
+                    continue
+                key = self.title_key(title)
+                self.by_title_key[key].append(data)
 
     def generic_title_penalties(self, title):
         # A generic-looking title means that an author match 
@@ -96,7 +97,7 @@ class Comparator(object):
             # Telephone directories are uniquely awful, and they're
             # published every year. Hold them to the highest standards.
             return 7, 1.0, 7
-        if self.TOTALLY_GENERIC_TITLES_RE.match(title): 
+        if self.TOTALLY_GENERIC_TITLES_RE.match(title):
             return 6, 0.8, 5
         if self.GENERIC_TITLES_RE.match(title):
             return 4, 0.7, 4
@@ -122,9 +123,9 @@ class Comparator(object):
         # Just ignore these stopwords -- they're commonly missing or
         # duplicated.
         for ignorable in (
-            ' the ',
-            ' a ',
-            ' an ',
+                ' the ',
+                ' a ',
+                ' an ',
         ):
             text = text.replace(ignorable, '')
         text = text.strip()
@@ -157,7 +158,7 @@ class Comparator(object):
 
     def title_key(self, normalized_title):
         words = [x for x in normalized_title.split(" ") if x]
-        longest_words = sorted(words, key= lambda x: (-len(x), x))
+        longest_words = sorted(words, key=lambda x: (-len(x), x))
         return tuple(longest_words[:2])
 
     def matches(self, registration):
@@ -185,8 +186,9 @@ class Comparator(object):
         # Assume we don't know the registration date; there will be no penalty.
         date_penalty = 0
         if registration_date:
-            ia_year = int(ia_data['year'])
-            date_penalty = self.evaluate_years(ia_year, registration_date.year)
+            if registration_year := ia_data.get('year'):
+                ia_year = int(registration_year)
+                date_penalty = self.evaluate_years(ia_year, registration_date.year)
 
         # A penalty is applied if the authors are clearly divergent,
         # but it's quite common so we don't usually make a big deal of it.
@@ -242,7 +244,7 @@ class Comparator(object):
         longer_string = max(len(ia), len(normalized_registration))
         proportional_changes = distance / float(longer_string)
 
-        proportional_distance = 1-(proportional_changes)
+        proportional_distance = 1 - (proportional_changes)
         return proportional_distance
 
     def evaluate_years(self, ia, registration):
@@ -253,7 +255,7 @@ class Comparator(object):
         # registration year and the publication year according to IA.
         # The penalty has a slight exponential element -- 5 years in
         # either direction really should be enough for a match.
-        return (abs(ia-registration) ** 1.1) * 0.1
+        return (abs(ia - registration) ** 1.1) * 0.1
 
     def evaluate_authors(self, ia_authors, registration_authors):
         if not ia_authors or not registration_authors:
@@ -315,35 +317,39 @@ class Comparator(object):
             penalty = min(penalty, 0.20)
         return penalty
 
-comparator = Comparator("output/ia-0-texts.ndjson")
-output = open("output/ia-1-matched.ndjson", "w")
 
-for filename in ["FINAL-not-renewed.ndjson"]: #"FINAL-possibly-renewed.ndjson"]:
-    for i in open("output/%s" % filename):
-        cce = Registration.from_json(json.loads(i))
-        title = cce.title
-        if not title or not comparator.normalize(title):
-            continue
-        matches = list(comparator.matches(cce))
+if __name__ == '__main__':
+    comparator = Comparator("output/ia-0-texts.ndjson")
+    output = Path("output/ia-1-matched.ndjson")
+    with output.open("w") as out:
+        for filename in ["FINAL-not-renewed.ndjson"]:  # "FINAL-possibly-renewed.ndjson"]:
+            file_path = Path("output") / filename
+            with file_path.open("rt") as file:
+                for i in tqdm(file, desc="Checking Matches"):
+                    cce = Registration.from_json(json.loads(i))
+                    title = cce.title
+                    if not title or not comparator.normalize(title):
+                        continue
+                    matches = list(comparator.matches(cce))
 
-        # If there are a huge number of IA matches for a CCE title,
-        # penalize them -- it's probably a big mess that must be dealt
-        # with separately. Give a slight boost if there's only a single
-        # match.
-        if len(matches) == 1:
-            num_matches_coefficient = 1.1
-        elif len(matches) <= MATCH_CUTOFF:
-            num_matches_coefficient = 1
-        else:
-            num_matches_coefficient = 1-(
-                len(matches) - MATCH_CUTOFF/float(MATCH_CUTOFF)
-            )
-        for registration, ia, quality in matches:
-            quality = quality * num_matches_coefficient
-            if quality <= QUALITY_CUTOFF:
-                continue
-            output_data = dict(
-                quality=quality, ia=ia, cce=registration.jsonable()
-            )
-            json.dump(output_data, output)
-            output.write("\n")
+                    # If there are a huge number of IA matches for a CCE title,
+                    # penalize them -- it's probably a big mess that must be dealt
+                    # with separately. Give a slight boost if there's only a single
+                    # match.
+                    if len(matches) == 1:
+                        num_matches_coefficient = 1.1
+                    elif len(matches) <= MATCH_CUTOFF:
+                        num_matches_coefficient = 1
+                    else:
+                        num_matches_coefficient = 1 - (
+                                len(matches) - MATCH_CUTOFF / float(MATCH_CUTOFF)
+                        )
+                    for registration, ia, quality in matches:
+                        quality *= num_matches_coefficient
+                        if quality <= QUALITY_CUTOFF:
+                            continue
+                        output_data = dict(
+                            quality=quality, ia=ia, cce=registration.jsonable()
+                        )
+                        json.dump(output_data, out)
+                        out.write("\n")

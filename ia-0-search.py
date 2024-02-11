@@ -6,65 +6,72 @@ import os
 import json
 from model import Registration
 
-class IAClient(object):
 
-    FIELDS = ["identifier", "date", "year", "creator", "language", "title", "licenseurl", "call_number", "createddate", "imagecount", "stars", "avg_rating", "creatorSorter", "titleSorter", "publicdate"]
+class IAClient(object):
+    FIELDS = ["identifier", "date", "year", "creator", "language", "title", "licenseurl", "call_number", "createddate",
+              "imagecount", "stars", "avg_rating", "creatorSorter", "titleSorter", "publicdate"]
 
     _session = None
-    
+
     def __init__(self, output_file):
         self.done = set()
         if os.path.exists(output_file):
-            for i in open(output_file):
-                data = json.loads(i)
-                self.done.add(data['uuid'])
-        self.out = open(output_file, "a")
-                
+            with open(output_file, "rt") as f:
+                for i in f:
+                    data = json.loads(i)
+                    if "uuid" in data:
+                        self.done.add(data['uuid'])
+            self.out = output_file
+        else:
+            raise Exception("No such file or directory: " + output_file)
+
     def process(self, input_file):
-        for i in open(input_file):
-            data = json.loads(i)
-            disposition = data['disposition']
-            if disposition.startswith('Renewed'):
-                continue
-            self.process_data(data)
-            json.dump(data, self.out)
-            self.out.write("\n")
-            
+        with open(input_file, "rt") as input_file:
+            for i in input_file:
+                data = json.loads(i)
+                disposition = data['disposition']
+                if disposition.startswith('Renewed'):
+                    continue
+                self.process_data(data)
+                with open(self.out, "a") as f:
+                    json.dump(data, f)
+                    f.write("\n")
+
     def process_data(self, data):
-            uuid = data['uuid']
-            if uuid in self.done:
-                return
-            title, authors = data['title'], data['authors']
-            if not title:
-                return
-            reg_dates = [
-                date_parser.parse(x['_normalized']) for x in data['reg_dates']
-            ]
-            reg_dates = reg_dates or [None]
-            #title = Registration._normalize_text(title)            
-            search_data = dict()
-            data['ia_search'] = search_data
-                
-            # First, try a normal title search with no date. These are
-            # quick and most of the time they return nothing.
-            query, results = self.search(title, None)
-            search_data[query] = results
-            print ("%s: %s" % (query, len(results)))
-            
-            # If we got results, try to zoom in by searching within 10 years of
-            # the registration date.            
-            if results:
-                for reg_date in reg_dates:
-                    query, results = self.search(title, reg_date)
-                    search_data[query] = results
-                    print ("%s: %s" % (query, len(results)))
-                
+        uuid = data['uuid']
+        if uuid in self.done:
+            return
+        title, authors = data['title'], data['authors']
+        if not title:
+            return
+        reg_dates = [
+            date_parser.parse(x['_normalized']) for x in data['reg_dates']
+        ]
+        reg_dates = reg_dates or [None]
+        # title = Registration._normalize_text(title)
+        search_data = dict()
+        data['ia_search'] = search_data
+
+        # First, try a normal title search with no date. These are
+        # quick and most of the time they return nothing.
+        query, results = self.search(title, None)
+        search_data[query] = results
+        print("%s: %s" % (query, len(results)))
+
+        # If we got results, try to zoom in by searching within 10 years of
+        # the registration date.
+        if results:
+            for reg_date in reg_dates:
+                query, results = self.search(title, reg_date)
+                search_data[query] = results
+                print("%s: %s" % (query, len(results)))
+
     def search(self, title, date):
         query = self.query(title, date)
 
         results = list(self._search(query))
         return query, results
-        
+
     @classmethod
     def session(cls, set_to=None):
         """Keep one ArchiveSession object for the whole program.
@@ -83,12 +90,12 @@ class IAClient(object):
         query = 'title:("%s")' % title
         if reg_date:
             fmt = "%Y-%m-%d"
-            interval = datetime.timedelta(days=365*5)
+            interval = datetime.timedelta(days=365 * 5)
             before = (reg_date - interval).strftime(fmt)
             after = (reg_date + interval).strftime(fmt)
             query += " AND date:[%s TO %s]" % (before, after)
         return query
-            
+
     @classmethod
     def _search(cls, query, *args, **kwargs):
         """Search Internet Archive items."""
@@ -106,6 +113,8 @@ class IAClient(object):
         except Exception as e:
             print(e)
             return
-                
-client = IAClient("output/ia-0-searches.ndjson")
-client.process("output/3-registrations-in-range.ndjson")
+
+
+if __name__ == "__main__":
+    client = IAClient("output/ia-0-searches.ndjson")
+    client.process("output/3-registrations-in-range.ndjson")

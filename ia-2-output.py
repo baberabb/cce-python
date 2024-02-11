@@ -1,9 +1,12 @@
-import unicodecsv 
+from pathlib import Path
+
+import unicodecsv
 from pdb import set_trace
 from model import Registration
 from collections import Counter
 import json
 import sys
+
 if len(sys.argv) > 1:
     cutoff = float(sys.argv[1])
 else:
@@ -16,6 +19,7 @@ out = unicodecsv.writer(output, dialect="excel-tab", encoding="utf-8")
 
 csv_row_labels = 'decision title author year id match_quality disposition'.split()
 out.writerow(csv_row_labels)
+
 
 class Package(object):
 
@@ -32,56 +36,58 @@ class Package(object):
         out.writerow(self.cce_data)
         out.writerow([])
 
-packages = []
-for i in open("output/ia-1-matched.ndjson"):
-    data = json.loads(i)
-    quality = data['quality']
-    if quality < cutoff:
-        continue
 
-    quality = round(quality,2)
+if __name__ == "__main__":
+    packages = []
+    for i in Path("output/ia-1-matched.ndjson").open():
+        data = json.loads(i)
+        quality = data['quality']
+        if quality < cutoff:
+            continue
 
-    ia = data['ia']
-    cce = Registration(**data['cce'])
+        quality = round(quality, 2)
 
-    ia_id = "https://archive.org/details/" + ia['identifier']
-    cce_id = cce.uuid
+        ia = data['ia']
+        cce = Registration(**data['cce'])
 
-    ia_title = ia['title']
-    cce_title = cce.title
-    
-    ia_author = ia.get('creator') or ia.get('creatorSorter') or ""
-    if isinstance(ia_author, list):
-        ia_author = "; ".join(ia_author)
-    cce_authors = cce.authors or []
-    for pub in cce.publishers:
-        claimants = pub.get('claimants')
-        if claimants:
-            for i in claimants:
-                if i:
-                    cce_authors.append(i)
-    for pub in cce.publishers:
-        nonclaimants = pub.get('nonclaimants')
-        if nonclaimants:
-            for i in nonclaimants:
-                if i:
-                    cce_authors.append(i)
-    cce_author = "; ".join(cce_authors)
+        ia_id = "https://archive.org/details/" + ia['identifier']
+        cce_id = cce.uuid
 
-    ia_year = ia['year']
-    cce_year = cce.best_guess_registration_date.year
+        ia_title = ia['title']
+        cce_title = cce.title
 
-    disposition = cce.disposition
+        ia_author = ia.get('creator') or ia.get('creatorSorter') or ""
+        if isinstance(ia_author, list):
+            ia_author = "; ".join(ia_author)
+        cce_authors = cce.authors or []
+        for pub in cce.publishers:
+            claimants = pub.get('claimants')
+            if claimants:
+                for i in claimants:
+                    if i:
+                        cce_authors.append(i)
+        for pub in cce.publishers:
+            nonclaimants = pub.get('nonclaimants')
+            if nonclaimants:
+                for i in nonclaimants:
+                    if i:
+                        cce_authors.append(i)
+        cce_author = "; ".join(cce_authors)
 
-    ia_row = ["", ia_title, ia_author, ia_year, ia_id, quality, ""]
-    cce_row = ["", cce_title, cce_author, cce_year, cce_id, "", disposition]
-    packages.append(Package(ia_row, cce_row))
-    counter[quality] += 1
+        ia_year = ia['year']
+        cce_year = cce.best_guess_registration_date.year
 
-for package in sorted(packages, key=lambda x: x.sort_key):    
-    package.write(out)
+        disposition = cce.disposition
 
-print("Number of possible matches by quality score:")
-for quality, num in sorted(counter.items(), key=lambda x: -x[0]):
-    print(" %s: %s" % (quality, num))
-print("Total: %s" % sum(counter.values()))
+        ia_row = ["", ia_title, ia_author, ia_year, ia_id, quality, ""]
+        cce_row = ["", cce_title, cce_author, cce_year, cce_id, "", disposition]
+        packages.append(Package(ia_row, cce_row))
+        counter[quality] += 1
+
+    for package in sorted(packages, key=lambda x: x.sort_key):
+        package.write(out)
+
+    print("Number of possible matches by quality score:")
+    for quality, num in sorted(counter.items(), key=lambda x: -x[0]):
+        print(" %s: %s" % (quality, num))
+    print("Total: %s" % sum(counter.values()))

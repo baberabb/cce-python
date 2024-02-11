@@ -17,6 +17,7 @@ class PaginatedRequest:
             session: aiohttp.client.ClientSession,
             start_date: str,
             end_date: str,
+            params: dict = None
     ):
         self.retries = 0
         self.session = session
@@ -24,12 +25,15 @@ class PaginatedRequest:
         self.start_date = start_date
         self.end_date = end_date
         self.base_url = "https://archive.org/services/search/v1/scrape"
-        self.params = dict(
-            q=f"date:[{self.start_date} TO {self.end_date}] and mediatype:texts",
-            count=str(COUNT),
-            fields="identifier,date,year,creator,language,title,licenseurl,call_number,createddate,imagecount,stars,avg_rating,creatorSorter,titleSorter,publicdate",
-            sorts="publicdate desc",
-        )
+        if params:
+            self.params = params
+        else:
+            self.params = dict(
+                q=f"date:[{self.start_date} TO {self.end_date}] and mediatype:texts",
+                count=str(COUNT),
+                fields="identifier,date,year,creator,language,title,licenseurl,call_number,createddate,imagecount,stars,avg_rating,creatorSorter,titleSorter,publicdate",
+                sorts="publicdate desc",
+            )
         self.cursor = None
 
     async def fetch_pages(self):
@@ -111,7 +115,7 @@ async def main():
             tasks = [
                 asyncio.create_task(
                     process_pages(semaphore,
-                                  PaginatedRequest(session, start, end), pbar
+                                  PaginatedRequest(session=session, start_date=start, end_date=end), pbar
                                   )
                 )
                 for start, end in date_ranges
