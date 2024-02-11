@@ -13,8 +13,12 @@ from pdb import set_trace
 from collections import defaultdict
 import json
 import time
+
+from tqdm import tqdm
+
 from compare import Comparator
 from model import Registration
+
 
 class Processor(object):
 
@@ -46,32 +50,27 @@ class Processor(object):
             child.parent = registration
             self.process(child)
 
-annotated = open("output/2-registrations-with-renewals.ndjson", "w")
-cross_references = open("output/2-cross-references-in-foreign-registrations.ndjson", "w")
 
-comparator = Comparator("output/1-parsed-renewals.ndjson")
-processor = Processor(comparator, annotated, cross_references)
-before = time.time()
-count = 0
-for i in open("output/0-parsed-registrations.ndjson"):
-    processor.process(Registration(**json.loads(i)))
-    count += 1
-    if not count % 10000:
-        after = time.time()
-        print("%d %.2fsec" % (count, after-before))
-        before = after
-        after = None
+if __name__ == "__main__":
+    with open("output/2-registrations-with-renewals.ndjson", "w") as annotated, open(
+            "output/2-cross-references-in-foreign-registrations.ndjson", "w") as cross_references:
+        pbar = tqdm(unit_scale=True, desc='Comparing Reg. with Ren.: ')
+        comparator = Comparator("output/1-parsed-renewals.ndjson")
+        processor = Processor(comparator, annotated, cross_references)
+        for i in open("output/0-parsed-registrations.ndjson"):
+            processor.process(Registration(**json.loads(i)))
+            pbar.update(1)
 
-# Now that we're done, we can divide up the renewals by whether or not
-# we found a registration for them.
+    # Now that we're done, we can divide up the renewals by whether or not
+    # we found a registration for them.
 
-renewals_matched = open("output/2-renewals-with-registrations.ndjson", "w")
-renewals_not_matched = open("output/2-renewals-with-no-registrations.ndjson", "w")
-for regnum, renewals in comparator.renewals.items():
-    for renewal in renewals:
-        if renewal in comparator.used_renewals:
-            out = renewals_matched
-        else:
-            out = renewals_not_matched
-        json.dump(renewal.jsonable(), out)
-        out.write("\n")
+    with open("output/2-renewals-with-registrations.ndjson", "w") as renewals_matched, open(
+            "output/2-renewals-with-no-registrations.ndjson", "w") as renewals_not_matched:
+        for regnum, renewals in comparator.renewals.items():
+            for renewal in renewals:
+                if renewal in comparator.used_renewals:
+                    out = renewals_matched
+                else:
+                    out = renewals_not_matched
+                json.dump(renewal.jsonable(), out)
+                out.write("\n")

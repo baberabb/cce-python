@@ -11,13 +11,16 @@ import json
 import datetime
 import re
 from collections import Counter
+
+from tqdm import tqdm
+
 from model import Registration
 import time
 
 potentially_foreign = open("output/3-potentially-foreign-registrations.ndjson", "w")
 
-class Processor(object):
 
+class Processor(object):
     # Before this year, everything published in the US is public
     # domain.
     CUTOFF_YEAR = datetime.datetime.utcnow().year - 95
@@ -35,15 +38,15 @@ class Processor(object):
         self.output_for_uuid = dict()
 
         for i in open(
-            "output/2-cross-references-in-foreign-registrations.ndjson"
+                "output/2-cross-references-in-foreign-registrations.ndjson"
         ):
             data = json.loads(i)
             reg = Registration(**data)
             for regnum in reg.regnums:
                 self.foreign_xrefs[regnum].append(reg)
-        #self.cross_references_from_renewals = json.load(open(
+        # self.cross_references_from_renewals = json.load(open(
         #    "output/1-renewal-cross-references.json"
-        #))
+        # ))
 
     def disposition(self, registration):
         if registration.is_foreign:
@@ -73,7 +76,6 @@ class Processor(object):
             registration.disposition = "Not a book proper."
             return self.not_books_proper
 
-
         reg_date = registration.best_guess_registration_date
         if not reg_date:
             return self.error(
@@ -91,7 +93,6 @@ class Processor(object):
             return self.previously_published
 
         return self.in_range
-
 
     def process(self, data):
         registration = Registration.from_json(data)
@@ -120,21 +121,16 @@ class Processor(object):
         json.dump(registration.jsonable(require_disposition=True), output)
         output.write("\n")
 
-
     def error(self, registration, error):
         registration.disposition = "Error"
         registration.error = error
         return self.errors
 
-processor = Processor()
-before = time.time()
-count = 0
-for i in open("output/2-registrations-with-renewals.ndjson"):
-    data = json.loads(i)
-    processor.process(data)
-    count += 1
-    if not count % 10000:
-        after = time.time()
-        print("%d %.2fsec" % (count, after-before))
-        before = after
-        after = None
+
+if __name__ == "__main__":
+    processor = Processor()
+    pbar = tqdm(unit_scale=True, desc='Filtering: ')
+    for i in open("output/2-registrations-with-renewals.ndjson"):
+        data = json.loads(i)
+        processor.process(data)
+        pbar.update(1)

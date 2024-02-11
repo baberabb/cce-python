@@ -23,6 +23,7 @@ class Output(object):
             self.path, self.count, self.count / float(total) * 100,
         )
 
+
 yes = Output("renewed")
 not_books_proper = Output("not-books-proper")
 probably = Output("probably-renewed")
@@ -33,6 +34,8 @@ previously_published = Output("previously-published")
 error = Output("error")
 too_late = Output("too-late")
 too_early = Output("too-early")
+probably_not = Output("probably-not-renewed")
+
 
 def destination(file, disposition):
     if 'foreign' in file:
@@ -61,6 +64,7 @@ def destination(file, disposition):
         print(disposition)
         return no
 
+
 in_range_outputs = [yes, probably, possibly, no]
 all_outputs = [
     foreign,
@@ -86,9 +90,9 @@ for file in (
 ):
     path = "output/%s.ndjson"
     for i in open(path % file):
-            data = Registration.from_json(json.loads(i))
-            dest = destination(file, data.disposition)
-            dest.output(data)
+        data = Registration.from_json(json.loads(i))
+        dest = destination(file, data.disposition)
+        dest.output(data)
 
 in_range_total = sum(x.count for x in in_range_outputs)
 grand_total = sum(x.count for x in all_outputs)

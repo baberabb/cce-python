@@ -1,14 +1,18 @@
-from pdb import set_trace
+from __future__ import annotations
+
 import datetime
+from typing import Iterable
+
 from dateutil import parser as date_parser
 import json
 import re
 
-class XMLParser(object):
+
+class XMLParser:
     """Helper methods for running XPath queries."""
 
     @classmethod
-    def xpath(cls, tag, path):
+    def xpath(cls, tag, path)-> list[str|None]:
         """Find all child tags matching `path` and return a list of all
         non-empty text nodes within.
         """
@@ -16,7 +20,7 @@ class XMLParser(object):
         return [x.text for x in results if x.text]
 
     @classmethod
-    def xpath1(self, tag, path):
+    def xpath1(self, tag, path) -> str|None:
         """Find a single child tag matching `path` and return
         its text node, if any.
         """
@@ -26,7 +30,7 @@ class XMLParser(object):
         return results[0].text
 
     @classmethod
-    def _package(cls, tag):
+    def _package(cls, tag) -> dict:
         """Package a tag as a dictionary.
 
         The dictionary consists of the attributes of the tag, with
@@ -58,7 +62,7 @@ class XMLParser(object):
         return dates[0]
 
     @classmethod
-    def _parse_date_tag(cls, date_tag, warnings):
+    def _parse_date_tag(cls, date_tag, warnings) -> dict:
         """Turn a tag containing date information into a dictionary.
 
         :return: A dictionary with '_text' containing the raw date
@@ -71,7 +75,7 @@ class XMLParser(object):
         return data
 
     @classmethod
-    def _parse_date(cls, raw, warnings=None):
+    def _parse_date(cls, raw, warnings=None) -> datetime.datetime|None:
         parsed = None
         # Try to parse the full date, and parse just the year and
         # month if that fails. In most cases that's all we really
@@ -115,7 +119,7 @@ class Publisher(XMLParser):
         self.nonclaimants = nonclaimants or []
         self.extra = extra or {}
 
-    def jsonable(self, compact=False):
+    def jsonable(self, compact=False) -> dict:
         data = dict(
             dates=self.dates,
             places=self.places,
@@ -130,11 +134,11 @@ class Publisher(XMLParser):
         return data
 
     @classmethod
-    def from_json(cls, data):
+    def from_json(cls, data) -> "Publisher":
         return cls(**data)
 
     @classmethod
-    def from_tag(cls, publisher, warnings=None):
+    def from_tag(cls, publisher, warnings=None) -> "Publisher":
         """Parse publisher information from a <publisher> tag."""
         extra = dict(publisher.attrib)
         pub_dates = cls.date(
@@ -142,8 +146,8 @@ class Publisher(XMLParser):
             warnings=warnings
         )
         places = cls.xpath(publisher, "pubPlace")
-        claimants = []
-        nonclaimants = []
+        claimants: list[str] = []
+        nonclaimants: list[str] = []
         for publisher_name_tag in publisher.xpath("pubName"):
             name = publisher_name_tag.text
             is_claimant = publisher_name_tag.attrib.get('claimant')
@@ -155,18 +159,12 @@ class Publisher(XMLParser):
         return cls(pub_dates, places, claimants, nonclaimants, extra)
 
 
-class Places(object):
+class Places:
     """A helper class that knows about places in the real world."""
 
     # Big foreign publishing cities that are sometimes mentioned
     # without the context of the country.
-    FOREIGN_CITIES = set(
-        [
-            'Paris',
-            'London',
-            'Berlin',
-        ]
-    )
+    FOREIGN_CITIES = {'Paris', 'London', 'Berlin'}
 
     def __init__(self):
         self.foreign_countries = set()
@@ -179,7 +177,7 @@ class Places(object):
             self.foreign_countries.add(name)
             self.foreign_country_endings.add(", " + name)
 
-    def is_foreign(self, place):
+    def is_foreign(self, place) -> bool:
         """Make a best guess as to whether a place name is in
         another country.
         """
@@ -203,12 +201,26 @@ class Registration(XMLParser):
     PLACES = Places()
 
     def __init__(
-            self, uuid=None, regnums=None, reg_dates=None,
-            title=None, authors=None, notes=None,
-            publishers=None, previous_regnums=None, previous_publications=None,
-            new_matter_claimed=None, extra=None, parent=None, children=None,
-            xrefs=None, _is_foreign=None, warnings=None,
-            error=None, disposition=None, renewals=None
+            self,
+            uuid: str|None = None,
+            regnums: list|None = None,
+            reg_dates: list|None = None,
+            title: str|None = None,
+            authors: list|None = None,
+            notes: list|None = None,
+            publishers: list|None = None,
+            previous_regnums: list|None = None,
+            previous_publications: list|None = None,
+            new_matter_claimed: list|None = None,
+            extra: dict[str, list[dict]]|None = None,
+            parent: "Registration"|None = None,
+            children : list[Registration]|None=None,
+            xrefs: list|None=None,
+            _is_foreign: bool|None=None,
+            warnings: list|None=None,
+            error: str|None=None,
+            disposition: str|None=None,
+            renewals: list|None=None,
     ):
         self.uuid = uuid
         self.regnums = [x for x in (regnums or []) if x]
@@ -229,7 +241,7 @@ class Registration(XMLParser):
         self.disposition = disposition
         self.renewals = renewals
 
-    def jsonable(self, include_others=True, compact=False, require_disposition=False):
+    def jsonable(self, include_others=True, compact=False, require_disposition=False) -> dict:
         data = dict(
             uuid=self.uuid,
             regnums=self.regnums,
@@ -275,7 +287,7 @@ class Registration(XMLParser):
                     del data[k]
         return data
 
-    def _json(self, x, compact=False, **kwargs):
+    def _json(self, x, compact=False, **kwargs) -> dict:
         if isinstance(x, dict):
             if compact:
                 x = dict(x)
@@ -286,7 +298,7 @@ class Registration(XMLParser):
         return x.jsonable(**kwargs)
 
     @property
-    def renewal_key(self):
+    def renewal_key(self) -> tuple[str, str]:
         def to_set(x):
             return " ".join(sorted(self._normalize_text(x).split()))
         if not self.authors:
@@ -297,11 +309,11 @@ class Registration(XMLParser):
         return key
     
     @classmethod
-    def from_json(cls, data):
+    def from_json(cls, data) -> "Registration":
         return cls(**data)
 
     @classmethod
-    def from_tag(cls, tag, parent=None, include_extra=True):
+    def from_tag(cls, tag, parent=None, include_extra=True) -> Iterable["Registration"]:
 
         """Turn a <copyrightEntry> or <additionalEntry> tag into a sequence of
         Registration objects.
@@ -318,7 +330,7 @@ class Registration(XMLParser):
         :yield: A single Registration for an <additionalEntry> tag;
                 one or more for a <copyrightEntry> tag.
         """
-        warnings = []
+        warnings: list[str] = []
         uuid = tag.attrib.get('id', None)
         regnums = tag.attrib.get('regnum', '').split()
         reg_dates = cls.date(
@@ -363,24 +375,24 @@ class Registration(XMLParser):
             new_matter_claimed=new_matter_claimed
         )
 
-        children = []
+        children: list["Registration"] = []
         for child_tag in tag.xpath("additionalEntry"):
-            for child_registration in cls.from_tag(child_tag, registration):
+            for child_registration in cls.from_tag(tag=child_tag, parent=registration):
                 registration.children.append(child_registration)
 
         yield registration
         for child in children:
                 yield child
 
-    FOREIGN_PREFIXES = set(["AF", "AFO", "AF0"])
-    INTERIM_PREFIXES = set(["AI", "AIO", "AI0"])
+    FOREIGN_PREFIXES = {"AF", "AFO", "AF0"}
+    INTERIM_PREFIXES = {"AI", "AIO", "AI0"}
 
-    PREVIOUSLY_PUBLISHED_ABROAD = re.compile("[pd]u[bt][.,]? abroad", re.I)
-    PREVIOUSLY_PUBLISHED = re.compile("[pd]rev[.,]? [pd]u[bt]", re.I)
-    PREVIOUSLY_REGISTERED = re.compile("[pd]rev[.,]? reg", re.I)
-    PREVIOUSLY_SOMETHING = re.compile("[pd]rev[.,i]", re.I)
+    PREVIOUSLY_PUBLISHED_ABROAD = re.compile(r"[pd]u[bt][.,]? abroad", re.I)
+    PREVIOUSLY_PUBLISHED = re.compile(r"[pd]rev[.,]? [pd]u[bt]", re.I)
+    PREVIOUSLY_REGISTERED = re.compile(r"[pd]rev[.,]? reg", re.I)
+    PREVIOUSLY_SOMETHING = re.compile(r"[pd]rev[.,i]", re.I)
 
-    def _regnum_is_foreign(self, regnum):
+    def _regnum_is_foreign(self, regnum) -> bool:
         if any(regnum.startswith(x) for x in self.FOREIGN_PREFIXES):
             self.warnings.append(
                 "Regnum '%s' indicates a foreign registration." % regnum
@@ -391,9 +403,10 @@ class Registration(XMLParser):
                 "Regnum '%s' indicates an interim (and foreign) registration." % regnum
             )
             return True
+        return False
 
     @property
-    def previously_published(self):
+    def previously_published(self) -> bool:
         """See if it looks like this work was previously published -- in which
         case we'd need to manually check for earlier registrations
         which may have been renewed.
@@ -427,7 +440,7 @@ class Registration(XMLParser):
         return False
 
     @property
-    def is_foreign(self):
+    def is_foreign(self) -> bool:
 
         """See if it's possible to determine that this registration is for a
         foreign work, based solely on the metadata.
@@ -488,13 +501,13 @@ class Registration(XMLParser):
                         return True
         return False
 
-    DATE_AND_NUMBER_XREF = re.compile("([0-9]{,2}[A-Z][a-z]{2}[0-9]{2})[;,] ?(A[A-Z]?[0-9-]+)")
+    DATE_AND_NUMBER_XREF = re.compile(r"([0-9]{,2}[A-Z][a-z]{2}[0-9]{2})[;,] ?(A[A-Z]?[0-9-]+)")
 
-    NUMBER_AND_DATE_XREF = re.compile("(A[A-Z]?[0-9-]+)[;,] ?([0-9]{,2}[A-Z][a-z]{2}[0-9]{2})")
-    POSSIBLE_NUMBER_XREF = re.compile("(A{1,2}[0-9-]{4,})")
+    NUMBER_AND_DATE_XREF = re.compile(r"(A[A-Z]?[0-9-]+)[;,] ?([0-9]{,2}[A-Z][a-z]{2}[0-9]{2})")
+    POSSIBLE_NUMBER_XREF = re.compile(r"(A{1,2}[0-9-]{4,})")
 
     @property
-    def places(self):
+    def places(self) -> Iterable[str]:
         """All places mentioned in the context of where this book was published."""
         for pub in self.publishers:
             for place in pub['places']:
@@ -613,9 +626,9 @@ class Registration(XMLParser):
         if pub:
             return min(pub)
 
-    NOT_ALPHA = re.compile("[^0-9A-Z ]", re.I)
+    NOT_ALPHA = re.compile(r"[^0-9A-Z ]", re.I)
     @classmethod
-    def _normalize_text(cls, v):
+    def _normalize_text(cls, v) -> str:
         if not v:
             return ""
         return cls.NOT_ALPHA.sub("", v).lower()
@@ -663,7 +676,7 @@ class Renewal(object):
     def renewal_key(self):
         def to_set(x):
             return Registration(Registration._normalize_text(x).split())
-        return (to_set(self.data['title']), to_set(self.data['author']))
+        return to_set(self.data['title']), to_set(self.data['author'])
     
     def __getattr__(self, k):
         return self.data[k]
@@ -679,7 +692,7 @@ class Renewal(object):
             self.data.get('author'),
         ]
 
-    REG_NUMBER = re.compile("A[A-Z]?-?[0-9]+")
+    REG_NUMBER = re.compile(r"A[A-Z]?-?[0-9]+")
 
     @property
     def regnum(self):

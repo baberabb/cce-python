@@ -6,14 +6,18 @@ from pdb import set_trace
 import os
 from csv import DictReader
 from collections import defaultdict
+
+from tqdm import tqdm
+
 from model import Renewal
+
 
 class Parser(object):
 
     def __init__(self):
-        self.count = 0
+        self.pbar = tqdm(unit_scale=True, desc='Parsing Renewals')
         self.cross_references = defaultdict(list)
-        
+
     def process_directory_tree(self, path):
         for i in os.listdir(path):
             if not i.endswith('tsv'):
@@ -22,16 +26,17 @@ class Parser(object):
                 continue
             for entry in self.process_file(os.path.join(path, i)):
                 yield entry
-                self.count += 1
-        print(self.count)
+                self.pbar.update(1)
 
     def process_file(self, path):
-        for line in DictReader(open(path), dialect='excel-tab'):
-            yield Renewal.from_dict(line)
-            
-output = open("output/1-parsed-renewals.ndjson", "w")
-parser = Parser()
-for parsed in parser.process_directory_tree("renewals/data"):
+        with open(path, 'rt') as f:
+            for line in DictReader(f, dialect='excel-tab'):
+                yield Renewal.from_dict(line)
+
+
+if __name__ == '__main__':
+    output = open("output/1-parsed-renewals.ndjson", "w")
+    parser = Parser()
+    for parsed in parser.process_directory_tree("renewals/data"):
         json.dump(parsed.jsonable(), output)
         output.write("\n")
-
