@@ -35,8 +35,8 @@ class Parser(object):
 
 
 if __name__ == '__main__':
-    output = open("output/1-parsed-renewals.ndjson", "w")
-    parser = Parser()
-    for parsed in parser.process_directory_tree("renewals/data"):
-        json.dump(parsed.jsonable(), output)
-        output.write("\n")
+    with open("output/1-parsed-renewals.ndjson", "w") as output:
+        parser = Parser()
+        for parsed in parser.process_directory_tree("renewals/data"):
+            json.dump(parsed.jsonable(), output)
+            output.write("\n")

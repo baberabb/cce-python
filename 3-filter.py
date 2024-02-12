@@ -82,10 +82,10 @@ class Processor(object):
                 registration, "No registration or publication date."
             )
         if reg_date.year < self.CUTOFF_YEAR:
-            registration.disposition == 'Published before cutoff year.'
+            registration.disposition = 'Published before cutoff year.'
             return self.too_old
         elif reg_date.year > 1963:
-            registration.disposition == 'Published after cutoff year.'
+            registration.disposition = 'Published after cutoff year.'
             return self.too_new
 
         if registration.previously_published:

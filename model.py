@@ -1,7 +1,8 @@
 from __future__ import annotations
-
+import uuid
 import datetime
 from typing import Iterable
+from functools import reduce
 
 from dateutil import parser as date_parser
 import json
@@ -12,7 +13,7 @@ class XMLParser:
     """Helper methods for running XPath queries."""
 
     @classmethod
-    def xpath(cls, tag, path)-> list[str|None]:
+    def xpath(cls, tag, path) -> list[str | None]:
         """Find all child tags matching `path` and return a list of all
         non-empty text nodes within.
         """
@@ -20,7 +21,7 @@ class XMLParser:
         return [x.text for x in results if x.text]
 
     @classmethod
-    def xpath1(self, tag, path) -> str|None:
+    def xpath1(self, tag, path) -> str | None:
         """Find a single child tag matching `path` and return
         its text node, if any.
         """
@@ -75,7 +76,7 @@ class XMLParser:
         return data
 
     @classmethod
-    def _parse_date(cls, raw, warnings=None) -> datetime.datetime|None:
+    def _parse_date(cls, raw, warnings=None) -> datetime.datetime | None:
         parsed = None
         # Try to parse the full date, and parse just the year and
         # month if that fails. In most cases that's all we really
@@ -93,7 +94,7 @@ class XMLParser:
                     # which date_parser parses as 2059. Subtract
                     # 100 years and we're in business.
                     parsed = datetime.datetime(
-                        parsed.year-100, parsed.month, parsed.day
+                        parsed.year - 100, parsed.month, parsed.day
                     )
                 if parsed.year > 1995 or parsed.year < 1900:
                     # This is most likely a totally incorrect date, or
@@ -108,10 +109,12 @@ class XMLParser:
             warnings.append(msg)
         return parsed
 
+
 class Publisher(XMLParser):
     """Represents information about the publisher(s) associated with a
     Registration, and the time and circumstances of publication.
     """
+
     def __init__(self, dates=None, places=None, claimants=None, nonclaimants=None, extra=None):
         self.dates = dates or []
         self.places = places or []
@@ -158,6 +161,35 @@ class Publisher(XMLParser):
             destination.append(name)
         return cls(pub_dates, places, claimants, nonclaimants, extra)
 
+    def __add__(self, other: "Publisher") -> "Publisher":
+        return Publisher(dates=self.dates + other.dates,
+                         places=self.places + other.places,
+                         claimants=self.claimants + other.claimants,
+                         nonclaimants=self.nonclaimants + other.nonclaimants,
+                         extra=self.extra | other.extra
+                         )
+
+
+class Group(XMLParser):
+    def __init__(self, tag):
+        self.title: str = self.xpath1(tag, "title")
+        self.authors: list = self.xpath(tag, "author/authorName")
+        self.publishers: list = [
+            Publisher.from_tag(publisher_tag, "from group")
+            for publisher_tag in tag.xpath("publisher")
+        ]
+
+    def __hash__(self):
+        # Convert each publisher to its JSON-serializable form, then to a tuple of items
+        publishers_tuple = tuple(
+            tuple(str(sorted(publisher.jsonable(compact=True).items())))
+            for publisher in self.publishers
+        )
+        authors_tuple = tuple(self.authors)
+        # Combine title, immutable form of publishers, and authors into a single tuple for hashing
+        hash_tuple = (self.title, publishers_tuple, authors_tuple)
+        return hash(hash_tuple)
+
 
 class Places:
     """A helper class that knows about places in the real world."""
@@ -197,30 +229,31 @@ class Places:
 
 
 class Registration(XMLParser):
-
     PLACES = Places()
 
     def __init__(
             self,
-            uuid: str|None = None,
-            regnums: list|None = None,
-            reg_dates: list|None = None,
-            title: str|None = None,
-            authors: list|None = None,
-            notes: list|None = None,
-            publishers: list|None = None,
-            previous_regnums: list|None = None,
-            previous_publications: list|None = None,
-            new_matter_claimed: list|None = None,
-            extra: dict[str, list[dict]]|None = None,
-            parent: "Registration"|None = None,
-            children : list[Registration]|None=None,
-            xrefs: list|None=None,
-            _is_foreign: bool|None=None,
-            warnings: list|None=None,
-            error: str|None=None,
-            disposition: str|None=None,
-            renewals: list|None=None,
+            uuid: str | None = None,
+            regnums: list | None = None,
+            reg_dates: list | None = None,
+            title: str | None = None,
+            authors: list | None = None,
+            notes: list | None = None,
+            publishers: list | None = None,
+            previous_regnums: list | None = None,
+            previous_publications: list | None = None,
+            new_matter_claimed: list | None = None,
+            extra: dict[str, list[dict]] | None = None,
+            parent: "Registration" | None = None,
+            children: list[Registration] | None = None,
+            xrefs: list | None = None,
+            _is_foreign: bool | None = None,
+            warnings: list | None = None,
+            error: str | None = None,
+            disposition: str | None = None,
+            renewals: list | None = None,
+            group_title: str | None = None,
+            group_hash: int | None = None
     ):
         self.uuid = uuid
         self.regnums = [x for x in (regnums or []) if x]
@@ -240,6 +273,8 @@ class Registration(XMLParser):
         self.error = error
         self.disposition = disposition
         self.renewals = renewals
+        self.group_title = group_title
+        self.group_hash = group_hash
 
     def jsonable(self, include_others=True, compact=False, require_disposition=False) -> dict:
         data = dict(
@@ -257,6 +292,8 @@ class Registration(XMLParser):
             warnings=self.warnings,
             error=self.error,
             disposition=self.disposition,
+            group_title = self.group_title,
+            group_hash = self.group_hash
         )
         if not self.disposition and require_disposition:
             raise Exception("Disposition not set for %r" % data)
@@ -301,13 +338,14 @@ class Registration(XMLParser):
     def renewal_key(self) -> tuple[str, str]:
         def to_set(x):
             return " ".join(sorted(self._normalize_text(x).split()))
+
         if not self.authors:
             author = ""
         else:
             author = self.authors[0]
         key = (to_set(self.title), to_set(author))
         return key
-    
+
     @classmethod
     def from_json(cls, data) -> "Registration":
         return cls(**data)
@@ -330,6 +368,22 @@ class Registration(XMLParser):
         :yield: A single Registration for an <additionalEntry> tag;
                 one or more for a <copyrightEntry> tag.
         """
+        group_title, group_hash = "", None
+        # test_name = ["publisher", "author/authorName", "title", "note"]
+        if (group := tag.getparent()) is not None and group.tag == 'entryGroup':
+            group_ = Group(group)
+            publishers = group_.publishers
+            if publishers:
+                publishers = [reduce(lambda x, y: x + y, publishers)]
+            authors = group_.authors
+            group_title = group_.title
+            group_hash = hash(group_)
+
+        else:
+            authors = []
+            publishers = []
+            title = ""
+
         warnings: list[str] = []
         uuid = tag.attrib.get('id', None)
         regnums = tag.attrib.get('regnum', '').split()
@@ -339,9 +393,9 @@ class Registration(XMLParser):
             tag, 'regdate', allow_multiple=True, warnings=warnings,
         )
         title = cls.xpath1(tag, "title")
-        authors = cls.xpath(tag, "author/authorName")
+        authors += cls.xpath(tag, "author/authorName")
         notes = cls.xpath(tag, 'note')
-        publishers = [
+        publishers += [
             Publisher.from_tag(publisher_tag, warnings)
             for publisher_tag in tag.xpath("publisher")
         ]
@@ -372,7 +426,8 @@ class Registration(XMLParser):
             publishers=publishers, previous_regnums=previous_regnums,
             previous_publications=previous_publications,
             extra=extra, parent=parent, warnings=warnings,
-            new_matter_claimed=new_matter_claimed
+            new_matter_claimed=new_matter_claimed, group_title=group_title,
+            group_hash=group_hash
         )
 
         children: list["Registration"] = []
@@ -382,7 +437,7 @@ class Registration(XMLParser):
 
         yield registration
         for child in children:
-                yield child
+            yield child
 
     FOREIGN_PREFIXES = {"AF", "AFO", "AF0"}
     INTERIM_PREFIXES = {"AI", "AIO", "AI0"}
@@ -416,7 +471,8 @@ class Registration(XMLParser):
 
         if self.new_matter_claimed:
             self.warnings.append(
-                "New matter claimed (%s) implies the existence of a previous publication, which must be checked manually. New matter found in this title may be out of copyright even if the previous publication was renewed." % ", ".join(self.new_matter_claimed)
+                "New matter claimed (%s) implies the existence of a previous publication, which must be checked manually. New matter found in this title may be out of copyright even if the previous publication was renewed." % ", ".join(
+                    self.new_matter_claimed)
             )
             return True
 
@@ -490,7 +546,7 @@ class Registration(XMLParser):
             for value in values:
                 p = value.lower()
                 for keyword in [
-                        'abroad', 'american ed.', 'american edition'
+                    'abroad', 'american ed.', 'american edition'
                 ]:
                     if keyword in p:
                         self.warnings.append(
@@ -599,7 +655,7 @@ class Registration(XMLParser):
         if parsed:
             date['_normalized'] = parsed.isoformat()[:10]
         else:
-            date['_error'] =  "Could not parse date."
+            date['_error'] = "Could not parse date."
         return parsed
 
     @property
@@ -627,6 +683,7 @@ class Registration(XMLParser):
             return min(pub)
 
     NOT_ALPHA = re.compile(r"[^0-9A-Z ]", re.I)
+
     @classmethod
     def _normalize_text(cls, v) -> str:
         if not v:
@@ -662,8 +719,8 @@ class Registration(XMLParser):
             return True
         return False
 
-class Renewal(object):
 
+class Renewal(object):
     csv_row_labels = 'renewal_id renewal_date renewal_registration registration_date renewal_title renewal_author'.split()
 
     def __init__(self, **data):
@@ -676,8 +733,9 @@ class Renewal(object):
     def renewal_key(self):
         def to_set(x):
             return Registration(Registration._normalize_text(x).split())
+
         return to_set(self.data['title']), to_set(self.data['author'])
-    
+
     def __getattr__(self, k):
         return self.data[k]
 
@@ -711,10 +769,10 @@ class Renewal(object):
         uuid = d['entry_id']
         regnum = d['oreg']
         reg_date = d['odat']
-        author = d.get('auth', None)
+        author = d.get('author', None)
         title = d.get('titl', None) or d.get('title', None)
         renewal_id = d['id']
-        renewal_date = d.get('dreg', None)
+        renewal_date = d.get('rdat', None)
         new_matter = d['new_matter']
         full_text = d['full_text']
         see_also_renewal = [x for x in d['see_also_ren'].split("|") if x]

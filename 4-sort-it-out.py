@@ -5,7 +5,7 @@ import json
 from pdb import set_trace
 
 
-class Output(object):
+class Output:
     COMPACT = True
 
     def __init__(self, base):
