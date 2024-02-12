@@ -253,7 +253,8 @@ class Registration(XMLParser):
             disposition: str | None = None,
             renewals: list | None = None,
             group_title: str | None = None,
-            group_hash: int | None = None
+            group_hash: int | None = None,
+            crossref: str | None = None
     ):
         self.uuid = uuid
         self.regnums = [x for x in (regnums or []) if x]
@@ -275,6 +276,7 @@ class Registration(XMLParser):
         self.renewals = renewals
         self.group_title = group_title
         self.group_hash = group_hash
+        self.crossref = crossref
 
     def jsonable(self, include_others=True, compact=False, require_disposition=False) -> dict:
         data = dict(
@@ -293,7 +295,8 @@ class Registration(XMLParser):
             error=self.error,
             disposition=self.disposition,
             group_title = self.group_title,
-            group_hash = self.group_hash
+            group_hash = self.group_hash,
+            crossref= self.crossref
         )
         if not self.disposition and require_disposition:
             raise Exception("Disposition not set for %r" % data)
@@ -368,9 +371,9 @@ class Registration(XMLParser):
         :yield: A single Registration for an <additionalEntry> tag;
                 one or more for a <copyrightEntry> tag.
         """
-        group_title, group_hash = "", None
+        group_title, group_hash, crossref = "", None, None
         # test_name = ["publisher", "author/authorName", "title", "note"]
-        if (group := tag.getparent()) is not None and group.tag == 'entryGroup':
+        if (group := tag.getparent()).tag == 'entryGroup':
             group_ = Group(group)
             publishers = group_.publishers
             if publishers:
@@ -383,6 +386,8 @@ class Registration(XMLParser):
             authors = []
             publishers = []
             title = ""
+        if tag.tag == "crossRef" and (crossref := tag.xpath("see")):
+            crossref = crossref[0].attrib.get("rid")
 
         warnings: list[str] = []
         uuid = tag.attrib.get('id', None)
@@ -427,7 +432,7 @@ class Registration(XMLParser):
             previous_publications=previous_publications,
             extra=extra, parent=parent, warnings=warnings,
             new_matter_claimed=new_matter_claimed, group_title=group_title,
-            group_hash=group_hash
+            group_hash=group_hash, crossref=crossref
         )
 
         children: list["Registration"] = []

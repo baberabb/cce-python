@@ -9,7 +9,7 @@ from tqdm import tqdm
 from model import Registration
 
 
-class Parser(object):
+class Parser:
 
     def __init__(self):
         self.parser = etree.XMLParser(recover=True)
@@ -31,6 +31,9 @@ class Parser(object):
     def process_file(self, path):
         tree = etree.parse(path, self.parser)
         for e in tree.xpath("//copyrightEntry"):
+            for registration in Registration.from_tag(e, include_extra=False):
+                yield registration.jsonable()
+        for e in tree.xpath("//crossRef"):
             for registration in Registration.from_tag(e, include_extra=False):
                 yield registration.jsonable()
 
