@@ -54,14 +54,14 @@ class Processor(object):
 if __name__ == "__main__":
     with open("output/2-registrations-with-renewals.ndjson", "w") as annotated, open(
             "output/2-cross-references-in-foreign-registrations.ndjson", "w") as cross_references:
-        pbar = tqdm(unit_scale=True, desc='Comparing Reg. with Ren.: ')
+        pbar = tqdm(unit_scale=True, desc='Comparing Reg. with Ren.')
         comparator = Comparator("output/1-parsed-renewals.ndjson")
         processor = Processor(comparator, annotated, cross_references)
         for i in open("output/0-parsed-registrations.ndjson"):
             processor.process(Registration(**json.loads(i)))
             pbar.update(1)
 
-    # Now that we're done, we can divide up the renewals by whether or not
+    # Now that we're done, we can divide up the renewals by whether
     # we found a registration for them.
 
     with open("output/2-renewals-with-registrations.ndjson", "w") as renewals_matched, open(
