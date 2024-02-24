@@ -1,6 +1,7 @@
 # This script converts each copyright registration record from XML to
 # JSON, with a minimum of processing.
 import json
+import uuid
 from pdb import set_trace
 import os
 from collections import defaultdict
@@ -16,32 +17,46 @@ class Parser:
         self.seen_tags = set()
         self.seen_publisher_tags = set()
 
-    def process_directory_tree(self, path):
-        pbar = tqdm(unit_scale=True)
+    def process_directory_tree(self, path, xpath_="//copyrightEntry"):
+        pbar = tqdm(unit_scale=True, unit=xpath_[2:], desc=f"Processing {xpath_}")
         for dir_, subdirs, files in os.walk(path):
             if 'alto' in subdirs:
                 subdirs.remove('alto')
             for i in files:
                 if not i.endswith('xml'):
                     continue
-                for entry in self.process_file(os.path.join(dir_, i)):
+                for entry in self.process_file(os.path.join(dir_, i), xpath_=xpath_):
                     yield entry
                     pbar.update(1)
 
-    def process_file(self, path):
+    def process_file(self, path, xpath_="//copyrightEntry"):
         tree = etree.parse(path, self.parser)
-        for e in tree.xpath("//copyrightEntry"):
+        outside_group_xpath = f"{xpath_}[not(ancestor::entryGroup)]"
+        for e in tree.xpath(outside_group_xpath):
             for registration in Registration.from_tag(e, include_extra=False):
                 yield registration.jsonable()
-        for e in tree.xpath("//crossRef"):
-            for registration in Registration.from_tag(e, include_extra=False):
-                yield registration.jsonable()
+        # for e in tree.xpath(xpath_):
+        #     for registration in Registration.from_tag(e, include_extra=False):
+        #         yield registration.jsonable()
+        for group in tree.xpath("//entryGroup"):
+            group_uuid = uuid.uuid4().hex  # Generate unique UUID for each entryGroup
+            count= 0
+            # Iterate over entries within the current entryGroup
+            for e in group.xpath(f"{xpath_[2:]}"):
+                for registration in Registration.from_tag(e, include_extra=False, group_uuid=group_uuid):
+                    yield registration.jsonable()
+                    count += 1
+
 
 
 if __name__ == '__main__':
     if not os.path.exists("output"):
         os.mkdir("output")
-    with open("output/0-parsed-registrations.ndjson", "w") as output:
+    with open("output/0-parsed-registrations1.ndjson", "w") as output:
         for parsed in Parser().process_directory_tree("registrations/xml"):
             json.dump(parsed, output, sort_keys=True)
             output.write("\n")
+    # with open("output/0-parsed-registrations-cross-ref.ndjson", "w") as output:
+    #     for parsed in Parser().process_directory_tree("registrations/xml", xpath_="//crossRef"):
+    #         json.dump(parsed, output, sort_keys=True)
+    #         output.write("\n")
