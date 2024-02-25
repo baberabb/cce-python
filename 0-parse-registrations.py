@@ -33,7 +33,7 @@ class Parser:
         tree = etree.parse(path, self.parser)
         outside_group_xpath = f"{xpath_}[not(ancestor::entryGroup)]"
         for e in tree.xpath(outside_group_xpath):
-            for registration in Registration.from_tag(e, include_extra=False):
+            for registration in Registration.from_tag(e, include_extra=True):
                 yield registration.jsonable()
         # for e in tree.xpath(xpath_):
         #     for registration in Registration.from_tag(e, include_extra=False):
@@ -43,7 +43,7 @@ class Parser:
             count= 0
             # Iterate over entries within the current entryGroup
             for e in group.xpath(f"{xpath_[2:]}"):
-                for registration in Registration.from_tag(e, include_extra=False, group_uuid=group_uuid):
+                for registration in Registration.from_tag(e, include_extra=True, group_uuid=group_uuid):
                     yield registration.jsonable()
                     count += 1
 

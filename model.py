@@ -773,6 +773,8 @@ class Renewal(object):
         renewal_date = d.get('rdat', None)
         new_matter = d['new_matter']
         full_text = d['full_text']
+        claimants = d.get("claimants")
+        notes = d.get("notes")
         see_also_renewal = [x for x in d['see_also_ren'].split("|") if x]
         see_also_registration = [x for x in d['see_also_reg'].split("|") if x]
         if not regnum:
@@ -788,5 +790,5 @@ class Renewal(object):
             author=author, title=title, new_matter=new_matter,
             see_also_renewal=see_also_renewal,
             see_also_registration=see_also_registration,
-            full_text=full_text
+            full_text=full_text, claimants=claimants, notes=notes
         )

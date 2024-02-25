@@ -23,9 +23,11 @@ spreadsheets = {
     "previously-published": ["previously-published"],
 }
 
-for name, inputs in spreadsheets.items():
-    output = "output/FINAL-%s.tsv" % name
-    spreadsheet = Spreadsheet(output)
-    for i in inputs:
-        filename = "output/FINAL-%s.ndjson" % i
-        spreadsheet.convert(filename)
+
+if __name__ == "__main__":
+    for name, inputs in spreadsheets.items():
+        output = "output/FINAL-%s.tsv" % name
+        spreadsheet = Spreadsheet(output)
+        for i in inputs:
+            filename = "output/FINAL-%s.ndjson" % i
+            spreadsheet.convert(filename)

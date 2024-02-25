@@ -9,6 +9,8 @@ class Comparator(object):
         self.renewals = defaultdict(list)
         self.renewals_by_title = defaultdict(list)
         self.renewals_by_key = defaultdict(list)
+        # groups are not used. Doesn't seem to be a consistent grouping.
+        self.group_match = defaultdict(list)
 
         with open(renewals_input_path, "rt") as f:
             for i in f:
@@ -40,6 +42,8 @@ class Comparator(object):
         if renewals:
             renewals, disposition = self.best_renewal(registration, renewals)
             registration.disposition = disposition
+            if registration.group_uuid:
+                self.group_match[registration.group_uuid] = renewals
         else:
             registration.disposition = "Not renewed."
             renewals = []
@@ -63,6 +67,11 @@ class Comparator(object):
             if renewals_for_title:
                 renewals, disposition = self.best_renewal(registration, renewals_for_title)
                 registration.disposition = "Possibly renewed, based solely on title match."
+
+        # if not renewals:
+        #     if registration.group_uuid in self.group_match:
+        #         renewals = self.group_match[registration.group_uuid]
+        #         registration.disposition = "Group match"
 
         for renewal in renewals:
             # These renewals have been matched; they should not be
