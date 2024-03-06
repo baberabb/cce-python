@@ -9,10 +9,7 @@
 # Also eliminate from consideration renewals that do not correspond to
 # any registration in the dataset. (They're probably renewals for
 # some other piece of the dataset.)
-from pdb import set_trace
-from collections import defaultdict
 import json
-import time
 
 from tqdm import tqdm
 
@@ -28,6 +25,9 @@ class Processor(object):
         self.cross_references = cross_references
 
     def process(self, registration):
+        # u = registration.uuid
+        # if u == "163B6F95-72C4-1014-B53A-E905A29103D3":
+        #     print("hello")
         renewals = self.comparator.renewal_for(registration)
         registration.renewals = renewals
         json.dump(registration.jsonable(require_disposition=True), self.output)

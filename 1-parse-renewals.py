@@ -2,10 +2,9 @@
 # a JSON format similar to (but much simpler than) that created by
 # 0-parse-registrations.py.
 import json
-from pdb import set_trace
 import os
-from csv import DictReader
 from collections import defaultdict
+from csv import DictReader
 
 from tqdm import tqdm
 
@@ -35,8 +34,47 @@ class Parser(object):
 
 
 if __name__ == '__main__':
+    cross_ref = defaultdict(list)
+    with open("llm/renewals-from-lm.ndjson") as f:
+        for line in f:
+            res = json.loads(line)
+            if uuid:= res.get("uuid"):
+                cross_ref[uuid].append(res)
     with open("output/1-parsed-renewals.ndjson", "w") as output:
         parser = Parser()
         for parsed in parser.process_directory_tree("renewals/data"):
+            # if parsed.regnum:
+            #     if "A52449" in parsed.regnum:
+            #         print("hello")
+            if parsed.uuid in cross_ref:
+                c = cross_ref[parsed.uuid][0]
+                c_auth: list = c.get("author")
+                c_regnum: list = c.get("regnum")
+                c_renewal_id: list = c.get("renewal_id", [])
+                c_title: str = c.get("title")
+                c_claim: list = c.get("claimants")
+
+                if not parsed.renewal_id:
+                    if c_renewal_id:
+                        parsed.renewal_id = c_renewal_id
+                if c_auth:
+                    c_auth = filter(None, c_auth)
+                    if c_auth:
+                        parsed.author = " & ".join(c_auth)
+                if c_regnum:
+                    parsed.regnum.extend(c_regnum)
+                    parsed.regnum = list(set(parsed.regnum))
+                    if parsed.renewal_id:
+                        parsed.regnum = [x for x in parsed.regnum if x != parsed.renewal_id]
+                if c_title:
+                    parsed.title = c_title
+                if c_claim and None not in c_claim:
+                    if parsed.claimants:
+                        try:
+                            parsed.claimants += " |".join(c_claim)
+                        except:
+                            pass
+                    else:
+                        parsed.claimants = c_claim
             json.dump(parsed.jsonable(), output)
             output.write("\n")

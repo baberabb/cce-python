@@ -1,8 +1,8 @@
+import json
+
 from tqdm import tqdm
 
 from model import Registration
-import json
-from pdb import set_trace
 
 
 class Output:
@@ -22,7 +22,9 @@ class Output:
         if not total:
             return "%s: %s" % (self.path, self.count)
         return "%s: %s (%.2f%%)" % (
-            self.path, self.count, self.count / float(total) * 100,
+            self.path,
+            self.count,
+            self.count / float(total) * 100,
         )
 
 
@@ -40,17 +42,19 @@ probably_not = Output("probably-not-renewed")
 
 
 def destination(file, disposition):
-    if 'foreign' in file:
+    if isinstance(disposition, list):
+        disposition = disposition[0]
+    if "foreign" in file:
         return foreign
-    if 'registrations-too-late' in file:
+    if "registrations-too-late" in file:
         return too_late
-    if 'registrations-too-early' in file:
+    if "registrations-too-early" in file:
         return too_early
-    if 'not-books-proper' in file:
+    if "not-books-proper" in file:
         return not_books_proper
-    if 'error' in file:
+    if "error" in file:
         return error
-    if 'previously-published' in file:
+    if "previously-published" in file:
         return previously_published
     if disposition.startswith("Probably renewed"):
         return probably
@@ -82,14 +86,17 @@ if __name__ == "__main__":
         error,
     ]
 
-    for file in tqdm([
-        "3-registrations-in-range",
-        "3-registrations-foreign",
-        "3-registrations-previously-published",
-        "3-registrations-too-late",
-        "3-registrations-too-early",
-        "3-registrations-not-books-proper",
-        "3-registrations-error", ], desc="Sorting to files"
+    for file in tqdm(
+        [
+            "3-registrations-in-range",
+            "3-registrations-foreign",
+            "3-registrations-previously-published",
+            "3-registrations-too-late",
+            "3-registrations-too-early",
+            "3-registrations-not-books-proper",
+            "3-registrations-error",
+        ],
+        desc="Sorting to files",
     ):
         path = "output/%s.ndjson"
         with open(path % file) as f:
