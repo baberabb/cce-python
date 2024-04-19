@@ -28,28 +28,36 @@ class Parser:
                     yield entry
                     pbar.update(1)
 
+
+    # def process_file(self, path):
+    #     tree = etree.parse(open(path), self.parser)
+    #     for e in tree.xpath("//copyrightEntry"):
+    #         for registration in Registration.from_tag(e, include_extra=False):
+    #             yield registration.jsonable()
+
+
     def process_file(self, path, xpath_="//copyrightEntry"):
         tree = etree.parse(path, self.parser)
         year = tree.find('.//year').text
-        outside_group_xpath = f"{xpath_}[not(ancestor::entryGroup)]"
-        for e in tree.xpath(outside_group_xpath):
+        # outside_group_xpath = f"{xpath_}[not(ancestor::entryGroup)]"
+        for e in tree.xpath(xpath_):
             for registration in Registration.from_tag(e, include_extra=True):
                 registration.year = year
                 yield registration.jsonable()
         # for e in tree.xpath(xpath_):
         #     for registration in Registration.from_tag(e, include_extra=False):
         #         yield registration.jsonable()
-        for group in tree.xpath("//entryGroup"):
-            group_uuid = uuid.uuid4().hex  # Generate unique UUID for each entryGroup
-            count = 0
-            # Iterate over entries within the current entryGroup
-            for e in group.xpath(f"{xpath_[2:]}"):
-                for registration in Registration.from_tag(
-                    e, include_extra=True, group_uuid=group_uuid
-                ):
-                    registration.year = year
-                    yield registration.jsonable()
-                    count += 1
+        # for group in tree.xpath("//entryGroup"):
+        #     group_uuid = uuid.uuid4().hex  # Generate unique UUID for each entryGroup
+        #     count = 0
+        #     # Iterate over entries within the current entryGroup
+        #     for e in group.xpath(f"{xpath_[2:]}"):
+        #         for registration in Registration.from_tag(
+        #             e, include_extra=True, group_uuid=group_uuid
+        #         ):
+        #             registration.year = year
+        #             yield registration.jsonable()
+        #             count += 1
         for e in tree.xpath("//crossRef"):
             for registration in Registration.from_crossref_tag(e):
                 registration.year = year
