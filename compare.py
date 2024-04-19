@@ -2,7 +2,18 @@ import json
 from collections import defaultdict
 from dateutil import parser
 from model import Registration, Renewal
+import logging
 
+logger = logging.getLogger('server_logger')
+
+# create a file handler
+file_handler = logging.FileHandler("logs.txt")
+
+# add the file handler to the logger
+logger.addHandler(file_handler)
+
+# set the log level
+logger.setLevel(logging.DEBUG)
 
 class Comparator(object):
     def __init__(self, renewals_input_path):
@@ -55,6 +66,7 @@ class Comparator(object):
             if regnum in self.renewals:
                 renewals.extend(self.renewals[regnum])
         if renewals:
+            logger.debug(f"{len(renewals)}")
             # this used to ignore duplicates
             renewals, disposition = zip(*self.best_renewal(registration, renewals))
             registration.disposition = disposition
@@ -97,21 +109,21 @@ class Comparator(object):
                     renewals_for_key = self.renewals_by_key[key]
                     if renewals_for_key:
                         renewals, disposition = zip(
-                            self.best_renewal(registration, renewals_for_key)
+                            *self.best_renewal(registration, renewals_for_key)
                         )
                         registration.disposition = (
                             "Possibly renewed, based solely on title/author match."
                         )
 
-        # if not renewals:
-        #     # We'll count it as a tentative match if there has _ever_ been a renewal
-        #     # for a book with a nearly-identical title.
-        #     title = Registration._normalize_text(registration.title) or registration.title
-        #     if title:
-        #         renewals_for_title = self.renewals_by_title[title]
-        #         if renewals_for_title:
-        #             renewals, disposition = self.best_renewal(registration, renewals_for_title)
-        #             registration.disposition = "Possibly renewed, based solely on title match."
+        if all(value is None for value in renewals):
+            # We'll count it as a tentative match if there has _ever_ been a renewal
+            # for a book with a nearly-identical title.
+            title = Registration._normalize_text(registration.title) or registration.title
+            if title:
+                renewals_for_title = self.renewals_by_title[title]
+                if renewals_for_title:
+                    renewals, disposition = zip(*self.best_renewal(registration, renewals_for_title))
+                    registration.disposition = "Possibly renewed, based solely on title match."
 
         # if not renewals:
         #     if registration.group_uuid in self.group_match:
