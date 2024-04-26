@@ -907,34 +907,66 @@ class Renewal(object):
     #     return r
 
     @staticmethod
-    def normalize_regnum(regnums: list[str]) -> list[str]:
-        temp = []
+    def normalize_regnum(regnums: list[str], max_range=30) -> list[str]:
+        numbers = []
+        prefix_non_numeric = None
         for x in regnums:
             if "-" in x:
-                if not x.startswith("A5"):
-                    new_ = x.split("-")
-                else:
-                    # print("hello")
-                    new_ = x
-                pre = re.findall(r"[A-Za-z]+", new_[0])
-                if len(new_[0]) < 3:
-                    temp.extend([x.replace("-", "")])
-                else:
-                    if pre:
-                        temp.extend([new_[0]])
-                        try:
-                            if int(new_[-1]) - int(new_[1]) < 30:
-                                for a in range(int(new_[1]), int(new_[-1]) + 1):
-                                    temp.extend([new_[0][0] + str(a)])
-                            else:
-                                temp.extend([x.replace("-", "")])
-                        except:
-                            temp.extend([x.replace("-", "")])
+                try:
+                    prefix, range_str = x.split('-')
+                except:
+                    sp = x.split('-')
+                    prefix_non_numeric = sp[0]
+                    prefix = sp[1]
+                    range_str = sp[2]
+
+                try:
+                    start = int(''.join(filter(str.isdigit, prefix)))
+                    end = int(range_str)
+
+                    if not prefix_non_numeric:
+                        prefix_non_numeric = ''.join(filter(str.isalpha, prefix))
+                    prefix_length = len(str(start))
+
+                    if end - start + 1 < max_range:
+                        for i in range(start, end + 1):
+                            number = prefix_non_numeric + str(i).zfill(prefix_length)
+                            numbers.append(number)
                     else:
-                        temp.extend([x.replace("-", "")])
+                        numbers.extend([x.replace("-", "")])
+                except:
+                    numbers.extend([x.replace("-", "")])
             else:
-                temp.extend([x])
-        return temp
+                numbers.append(x)
+
+        return sorted(list(set(numbers)))
+        # temp = []
+        # for x in regnums:
+        #     if "-" in x:
+        #         if not x.startswith("A5"):
+        #             new_ = x.split("-")
+        #         else:
+        #             # print("hello")
+        #             new_ = x
+        #         pre = re.findall(r"[A-Za-z]+", new_[0])
+        #         if len(new_[0]) < 3:
+        #             temp.extend([x.replace("-", "")])
+        #         else:
+        #             if pre:
+        #                 temp.extend([new_[0]])
+        #                 try:
+        #                     if int(new_[-1]) - int(new_[1]) < 30:
+        #                         for a in range(int(new_[1]), int(new_[-1]) + 1):
+        #                             temp.extend([new_[0][0] + str(a)])
+        #                     else:
+        #                         temp.extend([x.replace("-", "")])
+        #                 except:
+        #                     temp.extend([x.replace("-", "")])
+        #             else:
+        #                 temp.extend([x.replace("-", "")])
+        #     else:
+        #         temp.extend([x])
+        # return temp
 
     @staticmethod
     def convert_date(s: str, **date_kwargs) -> str:
@@ -1005,6 +1037,8 @@ class Renewal(object):
     @classmethod
     def from_dict(cls, d):
         uuid = d["entry_id"]
+        if uuid == "f61c22be-643a-5960-88c0-b717d2a51db9":
+            print("hello")
         regnum = d["oreg"]
         reg_date = d["odat"]
         author = d.get("author", None)
