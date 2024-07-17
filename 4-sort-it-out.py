@@ -72,7 +72,7 @@ def destination(file, disposition):
 
 
 if __name__ == "__main__":
-    in_range_outputs = [yes, probably, possibly, no]
+    in_range_outputs = [yes, probably, possibly, no, probably_not]
     all_outputs = [
         foreign,
         previously_published,
@@ -84,6 +84,7 @@ if __name__ == "__main__":
         no,
         not_books_proper,
         error,
+        probably_not
     ]
 
     for file in tqdm(
@@ -97,10 +98,14 @@ if __name__ == "__main__":
             "3-registrations-error",
         ],
         desc="Sorting to files",
+        position=0,
     ):
         path = "output/%s.ndjson"
         with open(path % file) as f:
-            for i in f:
+            for i in tqdm(f,
+                          position=1,
+                          leave=False,
+                          desc=f"Processing file {file}"):
                 data = Registration.from_json(json.loads(i))
                 dest = destination(file, data.disposition)
                 dest.output(data)

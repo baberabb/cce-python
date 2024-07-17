@@ -14,21 +14,21 @@ import json
 from tqdm import tqdm
 
 from compare import Comparator
-from model import Registration
+from model import Registration, Renewal
 
 
-class Processor(object):
+class Processor:
 
-    def __init__(self, comparator, output, cross_references):
+    def __init__(self, comparator: Comparator, output, cross_references):
         self.comparator = comparator
         self.output = output
         self.cross_references = cross_references
 
-    def process(self, registration):
+    def process(self, registration: "Registration"):
         # u = registration.uuid
         # if u == "163B6F95-72C4-1014-B53A-E905A29103D3":
         #     print("hello")
-        renewals = self.comparator.renewal_for(registration)
+        renewals: "Renewal" = self.comparator.renewal_for(registration)
         registration.renewals = renewals
         json.dump(registration.jsonable(require_disposition=True), self.output)
         self.output.write("\n")

@@ -15,7 +15,7 @@ logger.addHandler(file_handler)
 # set the log level
 logger.setLevel(logging.DEBUG)
 
-class Comparator(object):
+class Comparator:
     def __init__(self, renewals_input_path):
         self.renewals = defaultdict(list)
         self.renewals_by_title = defaultdict(list)
@@ -23,6 +23,7 @@ class Comparator(object):
         # groups are not used. Doesn't seem to be a consistent grouping.
         self.group_match = defaultdict(list)
         self.crossrefs = defaultdict(list)
+        self.REGNUMS_MATCHED: list["Renewal"] | None = []
 
         # get registration crossrefs as well
         with open(
@@ -65,6 +66,7 @@ class Comparator(object):
             regnum = regnum.replace("-", "")
             if regnum in self.renewals:
                 renewals.extend(self.renewals[regnum])
+            self.REGNUMS_MATCHED = renewals[:]
         if renewals:
             logger.debug(f"{len(renewals)}")
             # this used to ignore duplicates
@@ -123,16 +125,21 @@ class Comparator(object):
                 renewals_for_title = self.renewals_by_title[title]
                 if renewals_for_title:
                     renewals, disposition = zip(*self.best_renewal(registration, renewals_for_title))
-                    registration.disposition = "Possibly renewed, based solely on title match."
+                    registration.disposition = "Possibly renewed, based solely on global title match."
 
         # if not renewals:
         #     if registration.group_uuid in self.group_match:
         #         renewals = self.group_match[registration.group_uuid]
         #         registration.disposition = "Group match"
+
+        # if there isn't a proper match, keep track if regnum matched
+        if self.REGNUMS_MATCHED:
+            if all(value is None for value in renewals):
+                renewals = self.REGNUMS_MATCHED
+                registration.disposition = "Probably not renewed, but regnum match."
+
         if not all(value is None for value in renewals):
             for renewal in renewals:
-                # if len([x for x in renewals if x]) > 1:
-                #     print("hello")
                 if renewal:
                     # These renewals have been matched; they should not be
                     # output in the list of unmatched renewals.

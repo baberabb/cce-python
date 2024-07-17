@@ -292,6 +292,8 @@ class Registration(XMLParser):
             group_title=self.group_title,
             group_uuid=self.group_uuid,
             year=self.year,
+            children=self.children,
+            parent=self.parent
         )
 
         if not self.disposition and require_disposition:
