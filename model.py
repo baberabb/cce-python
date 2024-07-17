@@ -461,8 +461,9 @@ class Registration(XMLParser):
         children: list["Registration"] = []
         for child_tag in tag.xpath("additionalEntry"):
             for child_registration in cls.from_tag(tag=child_tag, parent=registration):
-                registration.children.append(child_registration)
-
+                children.append(child_registration)
+                # registration.children.append(child_registration)
+        registration.children = children
         yield registration
         for child in children:
             yield child
